@@ -32,7 +32,7 @@ if IMPLEMENT
 ;    NetComServerProtocol implementation
 ; ==================================================================================================
 
-; ——————————————————————————————————————————————————————————————————————————————————————————————————
+; ?????????????????????????????????????????????????
 ; Method:     NetComServerProtocol.Allocate
 ; Purpose:    Allocates a memory chunk for management data on a per connection basis. Additional
 ;             related resources can be reserved here. The pointer to the allocated memory must be
@@ -53,7 +53,57 @@ Method NetComServerProtocol.Allocate,, pConnection:$ObjPtr(NetComConnection)
   .endif
 MethodEnd
 
-; ——————————————————————————————————————————————————————————————————————————————————————————————————
+; ?????????????????????????????????????????????????
+; Method:     NetComServerProtocol.OnAccept
+; Purpose:    An inbound connection 'accept' has completed.
+; Arguments:  Arg1: -> NetComConnection.
+; Return:     eax = command (CMD_ACCEPT_CONNECTION or CMD_REJECT_CONNECTION).
+
+Method NetComServerProtocol.OnAccept, uses xbx xsi, pConnection:$ObjPtr(NetComConnection)
+  local cAddrStr[1024]:CHR, dLength:DWORD
+
+  DbgHex pConnection, "NetComServerProtocol.OnAccept", "&PROTOCOL_WND_NAME"
+  SetObject xsi
+  mov xbx, pConnection
+  if DEBUGGING
+    DbgLine
+    DbgText "RemoteHost is requesting a connection"
+    DbgHex [xbx].$Obj(NetComConnection).RemoteHostAddr.sin_addr, 
+    DbgHex WORD ptr [xbx].$Obj(NetComConnection).RemoteHostAddr.sin_port
+  endif
+
+  ;Check if the RemoteHost is in the BlackList. If yes, close the NetComConnection
+  .if $OCall(xsi.IsBlackListed?, addr [xbx].$Obj(NetComConnection).RemoteHostAddr) != FALSE
+    DbgWarning "RemoteHost is blacklisted; connection rejected..."
+    mov eax, PROT_CMD_REJECT_CONNECTION
+  .else
+    DbgText "RemoteHost is OK; connection granded..."
+    
+    mov dLength, lengthof(cAddrStr)
+    invoke WSAAddressToString, addr [xbx].$Obj(NetComConnection).LocalHostAddr, sizeof(sockaddr_in), \
+                               NULL, \
+                               addr cAddrStr, addr dLength
+    DbgStr cAddrStr
+    mov eax, PROT_CMD_ACCEPT_CONNECTION
+  .endif
+MethodEnd
+
+; ?????????????????????????????????????????????????
+; Method:     NetComServerProtocol.OnDisconnect
+; Purpose:    An established connection has been disconnected.
+; Arguments:  Arg1: -> NetComConnection.
+; Return:     eax = Command.
+
+Method NetComServerProtocol.OnDisconnect, uses xsi, pConnection:$ObjPtr(NetComConnection)
+  DbgHex pConnection, "NetComServerProtocol.OnDisconnect", "&PROTOCOL_WND_NAME"
+  SetObject xsi
+  ACall xsi.OnDisconnect, pConnection
+  mov xdx, pConnection
+  BitSet [xdx].$Obj(NetComConnection).dFlags, NCC_FREE_MARKED
+MethodEnd
+
+
+; ?????????????????????????????????????????????????
 ; Method:     NetComServerProtocol.IsDataComplete?
 ; Purpose:    A NetComConnection class will call this method to determine if we have received at
 ;             least one complete packet, given the rules of your Protocol. This is where your
@@ -95,65 +145,19 @@ Method NetComServerProtocol.IsDataComplete?, uses xbx xdi xsi, pConnection:$ObjP
       inc edx
       .if byte ptr [xdi] == "@"
         mov eax, edx
+        .break
       .endif
       inc ecx
       inc xdi
     .endw
+    .break .if eax > 0
     mov xbx, [xbx].SDLL_ITEM.pNextItem
   .endw
   mov [xsi].SRVPROTDATA.pNextIOData, xbx
+  DbgDec xax, "NetComServerProtocol.IsDataComplete? - Delimiter", "&PROTOCOL_WND_NAME"
 MethodEnd
 
-; ——————————————————————————————————————————————————————————————————————————————————————————————————
-; Method:     NetComServerProtocol.OnAccept
-; Purpose:    An inbound connection 'accept' has completed.
-; Arguments:  Arg1: -> NetComConnection.
-; Return:     eax = command (CMD_ACCEPT_CONNECTION or CMD_REJECT_CONNECTION).
-
-Method NetComServerProtocol.OnAccept, uses xbx xsi, pConnection:$ObjPtr(NetComConnection)
-  local cAddrStr[1024]:CHR, dLength:DWORD
-
-  DbgHex pConnection, "NetComServerProtocol.OnAccept", "&PROTOCOL_WND_NAME"
-  SetObject xsi
-  mov xbx, pConnection
-  if DEBUGGING
-    DbgLine
-    DbgText "RemoteHost is requesting a connection"
-    DbgHex [xbx].$Obj(NetComConnection).RemoteHostAddr.sin_addr, 
-    DbgHex WORD ptr [xbx].$Obj(NetComConnection).RemoteHostAddr.sin_port
-  endif
-
-  ;Check if the RemoteHost is in the BlackList. If yes, close the NetComConnection
-  .if $OCall(xsi.IsBlackListed?, addr [xbx].$Obj(NetComConnection).RemoteHostAddr) != FALSE
-    DbgWarning "RemoteHost is blacklisted; connection rejected..."
-    mov eax, PROT_CMD_REJECT_CONNECTION
-  .else
-    DbgText "RemoteHost is OK; connection granded..."
-    
-    mov dLength, lengthof(cAddrStr)
-    invoke WSAAddressToString, addr [xbx].$Obj(NetComConnection).LocalHostAddr, sizeof(sockaddr_in), \
-                               NULL, \
-                               addr cAddrStr, addr dLength
-    DbgStr cAddrStr
-    mov eax, PROT_CMD_ACCEPT_CONNECTION
-  .endif
-MethodEnd
-
-; ——————————————————————————————————————————————————————————————————————————————————————————————————
-; Method:     NetComServerProtocol.OnDisconnect
-; Purpose:    An established connection has been disconnected.
-; Arguments:  Arg1: -> NetComConnection.
-; Return:     eax = Command.
-
-Method NetComServerProtocol.OnDisconnect, uses xsi, pConnection:$ObjPtr(NetComConnection)
-  DbgHex pConnection, "NetComServerProtocol.OnDisconnect", "&PROTOCOL_WND_NAME"
-  SetObject xsi
-  ACall xsi.OnDisconnect, pConnection
-  mov xdx, pConnection
-  BitSet [xdx].$Obj(NetComConnection).dFlags, NCC_FREE_MARKED
-MethodEnd
-
-; ——————————————————————————————————————————————————————————————————————————————————————————————————
+; ?????????????????????????????????????????????????
 ; Method:     NetComServerProtocol.ProcessData
 ; Purpose:    A client has finished sending us data, now we have to do something with that data.
 ; Arguments:  Arg1: -> NetComConnection.
@@ -163,13 +167,47 @@ MethodEnd
 ;             Positive INT32     - This many bytes were cleanly processed and should be removed
 ;                                  from the IOJob buffers.
 
-Method NetComServerProtocol.ProcessData,, pConnection:$ObjPtr(NetComConnection), \
+Method NetComServerProtocol.ProcessData,uses xsi xdi xbx, pConnection:$ObjPtr(NetComConnection), \
                                           dDelimiterIndex:dword
   DbgHex pConnection, "NetComServerProtocol.ProcessData", "&PROTOCOL_WND_NAME"
+
+  ;Compute the first IODATA we want to analyse
+  mov xdx, pConnection
+  ;mov xsi, [xdx].$Obj(NetComConnection).pProtocolData
+  lea xcx, [xdx].$Obj(NetComConnection).RcvIOChain
+  mov xbx, [xcx].SDLL_SENTINEL.pFirstItem
+  
+  xor xdx, xdx
+  mov edx, dDelimiterIndex
+  ;xor eax, eax
+  .while edx
+  	DbgDec edx, "Bytes to process", "&PROTOCOL_WND_NAME"
+    mov xdi, [xbx - IO_HEADER_SIZE].IO_SOCKJOB.WSABuf.buf
+    mov ecx, [xbx - IO_HEADER_SIZE].IO_SOCKJOB.dBytesConsumed
+    DbgDec xcx, "dBytesConsumed", "&PROTOCOL_WND_NAME"
+    .if ecx > edx
+    	push [xdi + xdx]
+    	mov dword ptr [xdi + xdx], 0
+    .else
+    	push [xdi + xcx]
+    	mov dword ptr [xdi + xcx], 0
+    .endif
+    DbgTextF "&PROTOCOL_WND_NAME", $RGB(0,0,0), "Data = '%s'", xdi
+    .if ecx > edx
+    	pop [xdi + xdx]
+    	xor xdx, xdx
+    .else
+    	pop [xdi + xcx]
+    	sub edx, ecx
+    	mov xbx, [xbx].SDLL_ITEM.pNextItem  
+    .endif
+   .endw
+   DbgDec edx, "Bytes to process", "&PROTOCOL_WND_NAME"
   mov eax, dDelimiterIndex
+  inc eax
 MethodEnd
 
-; ——————————————————————————————————————————————————————————————————————————————————————————————————
+; ?????????????????????????????????????????????????
 ; Method:     NetComServerProtocol.Release
 ; Purpose:    Releases the memory chunk allocated with Allocate. Additional resources must be freed
 ;             here.
