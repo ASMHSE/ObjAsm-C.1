@@ -307,7 +307,7 @@ Method NetComEngine.Listen, uses xbx xdi xsi, pProtocol:$ObjPtr(NetComProtocol)
       OCall xsi.ErrorReport, NULL, NCE_SOCKET_CREATION_FAILED
       DbgSockError "Failed to create listener socket"
     .else
-      ;DbgText "Listener socket created"
+      DbgHex xax, "Listener socket created"
       mov [xbx].LISTENER.hSocket, xax
 
       ;Set socket options: disable nagle's algorithm
@@ -315,7 +315,7 @@ Method NetComEngine.Listen, uses xbx xdi xsi, pProtocol:$ObjPtr(NetComProtocol)
       invoke setsockopt, [xbx].LISTENER.hSocket, IPPROTO_TCP, TCP_NODELAY, \
                          addr dOption, sizeof dOption
       CheckSockError "ERROR on SetSockOpt TCP_NODELAY"
-
+	  
       mov Hints.ai_flags, AI_PASSIVE                    ;Bind to all available interfaces
       mov Hints.ai_family, AF_INETX
       mov Hints.ai_socktype, SOCK_STREAM

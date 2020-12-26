@@ -42,6 +42,8 @@ Method NetComConnection.Disconnect, uses xsi, dType:DWORD
     .ifBitClr [xsi].dFlags, NCC_DISCONNECTED_REMOTE
       OCall xsi.QueueRead                                 ;Issue a read to catch the FIN from the
     .endif                                                ;   remote host
+    
+    DbgHex [xsi].hSocket, "Connection socket shutdown"
     invoke shutdown, [xsi].hSocket, dType                 ;Send FIN to the remote host
     CheckSockError "ERROR on NetComConnection.Disconnect - shutdown"
     xBitSet [xsi].dFlags, NCC_DISCONNECTED_LOCAL
@@ -57,10 +59,7 @@ MethodEnd
 Method NetComConnection.Done, uses xsi
   SetObject xsi
   DbgHex xsi, "NetComConnection.Done"
-  OCall [xsi].pProtocol::NetComProtocol.OnClose, xsi    ;Inform protocol object
-  .if [xsi].hSocket != INVALID_SOCKET
-    OCall xsi.OnClose
-  .endif
+  OCall xsi.OnClose										;Inform protocol object
   OCall xsi.FreeIOJobs
   OCall [xsi].pProtocol::NetComProtocol.Release, xsi    ;Release protocol resources
   invoke DeleteCriticalSection, addr [xsi].CritSect 
@@ -183,6 +182,7 @@ Method NetComConnection.Init, uses xsi, pOwner:POINTER, pProtocol:POINTER
   .if eax == OBJ_OK
     ;Create a socket with WSA_FLAG_OVERLAPPED flag set! No WSAPROTOCOL_INFO and no Group
     invoke WSASocket, AF_INETX, SOCK_STREAM, IPPROTO_TCP, NULL, 0, WSA_FLAG_OVERLAPPED
+    DbgHex xax, "Connection socket created"
     mov [xsi].hSocket, xax
     .if xax != INVALID_SOCKET
       ;Enable the Nagle algorithm for send coalescing
@@ -307,6 +307,7 @@ Method NetComConnection.OnClose, uses xsi
       mov MyLinger.l_linger, 0
       invoke setsockopt, [xsi].hSocket, SOL_SOCKET, SO_LINGER, addr MyLinger, sizeof MyLinger
       CheckSockError "ERROR on SetSockOpt SO_LINGER"
+      DbgHex [xsi].hSocket, "Connection socket destroyed"
       invoke closesocket, [xsi].hSocket
       mov [xsi].hSocket, INVALID_SOCKET
     .endif
@@ -517,47 +518,50 @@ Method NetComConnection.OnRead, uses xbx xdi xsi, pIOSockJob:PIO_SOCKJOB
     invoke getsockopt, [xsi].hSocket, SOL_SOCKET, SO_CONNECT_TIME, \
                        addr [xsi].dRcvLastTime, addr dRvcTimeSize
     CheckSockError "ERROR on OnRead getsockopt SO_CONNECT_TIME"
-
-    OCall [xsi].pProtocol::NetComProtocol.IsDataComplete?, xsi, pIOSockJob
-    .if eax != 0                                        ;eax = byte count to free from IO_SOCKJOBs
-      OCall [xsi].pProtocol::NetComProtocol.ProcessData, xsi, eax
-      .if eax == ERROR_BAD_PROTOCOL || eax == ERROR_USER_QUIT
-        OCall xsi.Disconnect, SD_SEND
-        OCall xsi.QueueClose
-      .else
-        ;eax = #bytes consumed, which should be removed.
-        ;Note this value could be larger than one IOSockJob buffer, meaning that it represents
-        ;several IOJobs. Also note that the total #bytes buffered could be larger than the
-        ;#bytes consumed meaning the last IOSockJob will contain some data that is not part of
-        ;the complete receive and must remain buffered!
-        mov dConsumed, eax
-        lea xdi, [xsi].RcvIOChain                       ;Sentinel
-        mov xbx, [xdi].SDLL_SENTINEL.pFirstItem         ;Get first item
-        .while xbx != xdi && dConsumed != 0
-          mov edx, [xbx - IO_HEADER_SIZE].IO_SOCKJOB.dBytesConsumed
-          .if edx <= dConsumed
-            sub dConsumed, edx
-            mov xcx, [xsi].pOwner
-            lea xax, [xbx - IO_HEADER_SIZE]             ;xax -> IOSockJob
-            mov pIOSockJob, xax
-            mov xbx, [xbx].SDLL_ITEM.pNextItem
-            OCall [xcx].$Obj(NetComConnectionPool).pIOSockJobPool::NetComIOSockJobPool.FreeItem,\
-                                                                                      pIOSockJob
-            lock dec [xsi].dCompletedIOJobs
-            .break .if dConsumed == 0
-          .else
-            ;This is the last IOSockJob to be purged. We will be leaving some data in the buffer,
-            ;so we'll need to move the buffer POINTER to the unconsumed data.
-            mov ecx, dConsumed
-            add [xbx - IO_HEADER_SIZE].IO_SOCKJOB.WSABuf.buf, xcx
-            sub [xbx - IO_HEADER_SIZE].IO_SOCKJOB.dBytesConsumed, ecx
-            .break
-          .endif
-        .endw
-        mov [xdi].SDLL_SENTINEL.pFirstItem, xbx
-        mov [xbx].SDLL_ITEM.pPrevItem, xdi
-      .endif
-    .endif
+	.while TRUE
+	    OCall [xsi].pProtocol::NetComProtocol.IsDataComplete?, xsi, pIOSockJob
+	    .break .if eax == 0                                        ;eax = byte count to free from IO_SOCKJOBs
+      	OCall [xsi].pProtocol::NetComProtocol.ProcessData, xsi, eax
+      	.if eax == ERROR_BAD_PROTOCOL || eax == ERROR_USER_QUIT
+        	OCall xsi.Disconnect, SD_SEND
+        	OCall xsi.QueueClose
+        	.break
+      	.else
+        	;eax = #bytes consumed, which should be removed.
+	        ;Note this value could be larger than one IOSockJob buffer, meaning that it represents
+	        ;several IOJobs. Also note that the total #bytes buffered could be larger than the
+	        ;#bytes consumed meaning the last IOSockJob will contain some data that is not part of
+	        ;the complete receive and must remain buffered!
+	        mov dConsumed, eax
+	        lea xdi, [xsi].RcvIOChain                       ;Sentinel
+	        mov xbx, [xdi].SDLL_SENTINEL.pFirstItem         ;Get first item
+	        .while xbx != xdi && dConsumed != 0
+	          mov edx, [xbx - IO_HEADER_SIZE].IO_SOCKJOB.dBytesConsumed
+	          .if edx <= dConsumed
+	            sub dConsumed, edx
+	            mov xcx, [xsi].pOwner
+	            lea xax, [xbx - IO_HEADER_SIZE]             ;xax -> IOSockJob
+	            mov pIOSockJob, xax
+	            mov xbx, [xbx].SDLL_ITEM.pNextItem
+	            OCall [xcx].$Obj(NetComConnectionPool).pIOSockJobPool::NetComIOSockJobPool.FreeItem,\
+	                                                                                      pIOSockJob
+	            lock dec [xsi].dCompletedIOJobs
+	            .break .if dConsumed == 0
+	          .else
+	            ;This is the last IOSockJob to be purged. We will be leaving some data in the buffer,
+	            ;so we'll need to move the buffer POINTER to the unconsumed data.
+	            mov ecx, dConsumed
+	            add [xbx - IO_HEADER_SIZE].IO_SOCKJOB.WSABuf.buf, xcx
+	            sub [xbx - IO_HEADER_SIZE].IO_SOCKJOB.dBytesConsumed, ecx
+	            .break
+	          .endif
+	        .endw
+	        mov [xdi].SDLL_SENTINEL.pFirstItem, xbx
+	        mov [xbx].SDLL_ITEM.pPrevItem, xdi
+	      ;.endif
+	      .break .if dConsumed == 0
+	    .endif
+	.endw
   .endif
 MethodEnd
 
