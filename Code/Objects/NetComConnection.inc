@@ -518,8 +518,9 @@ Method NetComConnection.OnRead, uses xbx xdi xsi, pIOSockJob:PIO_SOCKJOB
     invoke getsockopt, [xsi].hSocket, SOL_SOCKET, SO_CONNECT_TIME, \
                        addr [xsi].dRcvLastTime, addr dRvcTimeSize
     CheckSockError "ERROR on OnRead getsockopt SO_CONNECT_TIME"
+    mov xbx, pIOSockJob
 	.while TRUE
-	    OCall [xsi].pProtocol::NetComProtocol.IsDataComplete?, xsi, pIOSockJob
+	    OCall [xsi].pProtocol::NetComProtocol.IsDataComplete?, xsi, xbx ;IOSockJob
 	    .break .if eax == 0                                        ;eax = byte count to free from IO_SOCKJOBs
       	OCall [xsi].pProtocol::NetComProtocol.ProcessData, xsi, eax
       	.if eax == ERROR_BAD_PROTOCOL || eax == ERROR_USER_QUIT

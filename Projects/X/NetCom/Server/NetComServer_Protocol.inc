@@ -154,7 +154,7 @@ Method NetComServerProtocol.IsDataComplete?, uses xbx xdi xsi, pConnection:$ObjP
     mov xbx, [xbx].SDLL_ITEM.pNextItem
   .endw
   mov [xsi].SRVPROTDATA.pNextIOData, xbx
-  DbgDec xax, "NetComServerProtocol.IsDataComplete? - Delimiter", "&PROTOCOL_WND_NAME"
+;  DbgDec xax, "NetComServerProtocol.IsDataComplete? - Delimiter", "&PROTOCOL_WND_NAME"
 MethodEnd
 
 ; ?????????????????????????????????????????????????
@@ -181,10 +181,10 @@ Method NetComServerProtocol.ProcessData,uses xsi xdi xbx, pConnection:$ObjPtr(Ne
   mov edx, dDelimiterIndex
   ;xor eax, eax
   .while edx
-  	DbgDec edx, "Bytes to process", "&PROTOCOL_WND_NAME"
+;  	DbgDec edx, "Bytes to process", "&PROTOCOL_WND_NAME"
     mov xdi, [xbx - IO_HEADER_SIZE].IO_SOCKJOB.WSABuf.buf
     mov ecx, [xbx - IO_HEADER_SIZE].IO_SOCKJOB.dBytesConsumed
-    DbgDec xcx, "dBytesConsumed", "&PROTOCOL_WND_NAME"
+;    DbgDec xcx, "dBytesConsumed", "&PROTOCOL_WND_NAME"
     .if ecx > edx
     	push [xdi + xdx]
     	mov dword ptr [xdi + xdx], 0
@@ -202,7 +202,7 @@ Method NetComServerProtocol.ProcessData,uses xsi xdi xbx, pConnection:$ObjPtr(Ne
     	mov xbx, [xbx].SDLL_ITEM.pNextItem  
     .endif
    .endw
-   DbgDec edx, "Bytes to process", "&PROTOCOL_WND_NAME"
+;   DbgDec edx, "Bytes to process", "&PROTOCOL_WND_NAME"
   mov eax, dDelimiterIndex
   inc eax
 MethodEnd
