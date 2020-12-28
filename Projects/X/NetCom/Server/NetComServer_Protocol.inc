@@ -128,15 +128,16 @@ Method NetComServerProtocol.IsDataComplete?, uses xbx xdi xsi, pConnection:$ObjP
   lea xcx, [xdx].$Obj(NetComConnection).RcvIOChain
   mov pRcvIOChain, xcx
 
-  .if xax == NULL || xcx == [xax].SDLL_ITEM.pPrevItem
+  ;.if xax == NULL || xcx == [xax].SDLL_ITEM.pPrevItem
     mov xbx, [xcx].SDLL_SENTINEL.pFirstItem           ;First item in linked list
-  .else
-    mov xbx, [xax].SDLL_ITEM.pPrevItem
-  .endif
-
+    mov [xsi].SRVPROTDATA.pNextIOData, xbx			; set for the next ProcessData
+  ;.else
+  ;  mov xbx, [xax].SDLL_ITEM.pPrevItem
+  ;.endif
+ 
   ;We will scan for a "@" character
-  xor edx, edx
-  xor eax, eax
+  xor xdx, xdx
+  xor xax, xax
   .while (xbx != pRcvIOChain) && ([xbx - IO_HEADER_SIZE].IO_SOCKJOB.wFlags & IOF_JOB_ENGAGED)
     ;Stop on first non ready buffer
     mov xdi, [xbx - IO_HEADER_SIZE].IO_SOCKJOB.WSABuf.buf
@@ -153,8 +154,8 @@ Method NetComServerProtocol.IsDataComplete?, uses xbx xdi xsi, pConnection:$ObjP
     .break .if eax > 0
     mov xbx, [xbx].SDLL_ITEM.pNextItem
   .endw
-  mov [xsi].SRVPROTDATA.pNextIOData, xbx
-;  DbgDec xax, "NetComServerProtocol.IsDataComplete? - Delimiter", "&PROTOCOL_WND_NAME"
+  
+  ;DbgDec xax, "NetComServerProtocol.IsDataComplete? - Delimiter", "&PROTOCOL_WND_NAME"
 MethodEnd
 
 ; ?????????????????????????????????????????????????
@@ -173,18 +174,15 @@ Method NetComServerProtocol.ProcessData,uses xsi xdi xbx, pConnection:$ObjPtr(Ne
 
   ;Compute the first IODATA we want to analyse
   mov xdx, pConnection
-  ;mov xsi, [xdx].$Obj(NetComConnection).pProtocolData
-  lea xcx, [xdx].$Obj(NetComConnection).RcvIOChain
-  mov xbx, [xcx].SDLL_SENTINEL.pFirstItem
+  mov xsi, [xdx].$Obj(NetComConnection).pProtocolData
+  mov xbx, [xsi].SRVPROTDATA.pNextIOData 				; is set in IsDataComplete?
   
   xor xdx, xdx
   mov edx, dDelimiterIndex
   ;xor eax, eax
   .while edx
-;  	DbgDec edx, "Bytes to process", "&PROTOCOL_WND_NAME"
-    mov xdi, [xbx - IO_HEADER_SIZE].IO_SOCKJOB.WSABuf.buf
+  	mov xdi, [xbx - IO_HEADER_SIZE].IO_SOCKJOB.WSABuf.buf
     mov ecx, [xbx - IO_HEADER_SIZE].IO_SOCKJOB.dBytesConsumed
-;    DbgDec xcx, "dBytesConsumed", "&PROTOCOL_WND_NAME"
     .if ecx > edx
     	push [xdi + xdx]
     	mov dword ptr [xdi + xdx], 0
@@ -200,10 +198,18 @@ Method NetComServerProtocol.ProcessData,uses xsi xdi xbx, pConnection:$ObjPtr(Ne
     	pop [xdi + xcx]
     	sub edx, ecx
     	mov xbx, [xbx].SDLL_ITEM.pNextItem  
+    	.break .if !xbx
+    	mov xcx, pConnection
+    	lea xcx, [xcx].$Obj(NetComConnection).RcvIOChain
+    	.if [xcx].SDLL_SENTINEL.pFirstItem == xbx
+    		DbgWarning "Loop in ProcessData", "&PROTOCOL_WND_NAME"
+    		.break
+    	.endif
     .endif
    .endw
-;   DbgDec edx, "Bytes to process", "&PROTOCOL_WND_NAME"
+   DbgDec edx, "Bytes to process", "&PROTOCOL_WND_NAME"
   mov eax, dDelimiterIndex
+  sub eax, edx				; sub the proceeded bytes
   inc eax
 MethodEnd
 

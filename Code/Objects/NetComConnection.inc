@@ -76,8 +76,7 @@ Method NetComConnection.DoRead, uses xbx xsi, pIOSockJob:PIO_SOCKJOB
   local dFlags:DWORD, dLen:DWORD
 
   SetObject xsi
-;  DbgHex xsi, "NetComConnection.DoRead"
-
+  
   mov xbx, pIOSockJob
   invoke EnterCriticalSection, addr [xsi].CritSect      ;Lock for insertion
   lea xcx, [xbx].IO_SOCKJOB.pNextItem                   ;Get address of SDLL_ITEM
@@ -169,8 +168,8 @@ MethodEnd
 Method NetComConnection.Init, uses xsi, pOwner:POINTER, pProtocol:POINTER
   local dOption:DWORD, dBytesTransf:DWORD
 
-;  DbgText "NetComConnection.Init"
   SetObject xsi
+  DbgHex xsi, "NetComConnection.Init"
   ?mov xdx, pOwner
   ACall xsi.Init, xdx
   invoke InitializeCriticalSection, addr [xsi].CritSect
@@ -502,7 +501,6 @@ Method NetComConnection.OnRead, uses xbx xdi xsi, pIOSockJob:PIO_SOCKJOB
       OCall xsi.Disconnect, SD_SEND                     ;Local Host disconnect
     .endif
   .else
-    mov xdx, pIOSockJob
     ;We queue a new read for the one we recieve here
     mov xcx, [xsi].pOwner
     OCall [xcx].$Obj(NetComConnectionPool).pIOSockJobPool::NetComIOSockJobPool.NewItem, \
@@ -520,9 +518,13 @@ Method NetComConnection.OnRead, uses xbx xdi xsi, pIOSockJob:PIO_SOCKJOB
     CheckSockError "ERROR on OnRead getsockopt SO_CONNECT_TIME"
     mov xbx, pIOSockJob
 	.while TRUE
-	    OCall [xsi].pProtocol::NetComProtocol.IsDataComplete?, xsi, xbx ;IOSockJob
-	    .break .if eax == 0                                        ;eax = byte count to free from IO_SOCKJOBs
+		; quit the loop if no mor data avail
+		.break .if [xbx].IO_SOCKJOB.dBytesConsumed == 0
+		OCall [xsi].pProtocol::NetComProtocol.IsDataComplete?, xsi, xbx ;IOSockJob
+		; quit the loop if chunk not complete
+	    .break .if eax == 0 ;eax = byte count to free from IO_SOCKJOBs
       	OCall [xsi].pProtocol::NetComProtocol.ProcessData, xsi, eax
+      	.break .if eax == 0 ; quit the loop if no data proceed
       	.if eax == ERROR_BAD_PROTOCOL || eax == ERROR_USER_QUIT
         	OCall xsi.Disconnect, SD_SEND
         	OCall xsi.QueueClose

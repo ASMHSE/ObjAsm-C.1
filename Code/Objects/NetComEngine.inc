@@ -146,7 +146,7 @@ Method NetComEngine.Done, uses xbx xdi xsi
 
   ;Close listener sockets and release DataCollection structures
   OCall [xsi].Listeners::DataCollection.Done
-
+  
   ;Tell NetComEngine worker to die, and wait for the death. Then shutdown the supervisor thread.
   mov [xsi].dShuttingDown, SDN_CLOSE_WORKERS
   invoke WaitForMultipleObjects, [xsi].Workers.dCount, [xsi].Workers.pItems, TRUE, 4000
@@ -576,8 +576,8 @@ Method NetComEngine.Worker, uses xbx xdi xsi
       .else
         mov xdi, xCompletionKey                         ;xdi -> NetComConnection
       .endif
-
-      invoke EnterCriticalSection, addr [xdi].$Obj(NetComConnection).CritSect
+	  
+	  invoke EnterCriticalSection, addr [xdi].$Obj(NetComConnection).CritSect
       ;Determine whether the operation completed successfully or not
       invoke WSAGetOverlappedResult, [xdi].$Obj(NetComConnection).hSocket, xbx, \
                                      addr dBytesConsumed, \
@@ -585,7 +585,7 @@ Method NetComEngine.Worker, uses xbx xdi xsi
       mov dOvrResult, eax
       ;Serialize on a per connection basis
 ;      LockObjectAccess [xdi].$Obj(NetComConnection)
-      .if dOvrResult != FALSE
+      .if eax ;!= FALSE
         movzx eax, [xbx].IO_SOCKJOB.wOperation
         .if eax == OPERATION_SOCK_READ
           mrm [xbx].IO_SOCKJOB.dBytesConsumed, dBytesConsumed, edx
@@ -614,7 +614,7 @@ Method NetComEngine.Worker, uses xbx xdi xsi
         .endif
 
       .else
-        ;Operation failed!
+      	;Operation failed!
         xBitSet [xbx].IO_SOCKJOB.wFlags, IOF_JOB_COMPLETED
         invoke WSAGetLastError                          ;This error is thread specific
         .if eax != ERROR_IO_INCOMPLETE
@@ -623,8 +623,7 @@ Method NetComEngine.Worker, uses xbx xdi xsi
       .endif
 ;      UnlockObjectAccess [xdi].$Obj(NetComConnection)
       invoke LeaveCriticalSection, addr [xdi].$Obj(NetComConnection).CritSect
-
-    .endif
+	.endif
 
   .until ([xsi].dShuttingDown == SDN_CLOSE_WORKERS && [xsi].IOJobs.dCount == 0) || \
           [xsi].dShuttingDown == SDN_QUIT_WORKERS       ;Abortive close
