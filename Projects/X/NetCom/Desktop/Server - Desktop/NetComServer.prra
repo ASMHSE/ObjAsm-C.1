@@ -1,0 +1,41 @@
+[Version]
+Version=3000
+[Project]
+Assembler=masm
+Path=D:\_Develop\OpenSource Projects\ObjAsm-x64\Projects\X\NetCom\Server - Desktop
+Group=2,-1,0,1,ObjAsm NetCom Desktop-Server,-2,-1,1,Assembly,-3,-1,1,Include,-4,-1,1,Misc,-5,-1,1,Resource
+F1=-2,0,1,-10,-33,1667,732,0,NetComServer.asm
+F2=-3,0,1,22,22,600,400,0,NetComServer_Main.inc
+F3=-3,0,1,22,22,600,400,0,NetComServer_Globals.inc
+F4=-5,2,4,22,22,600,400,0,NetComServer.rc
+F5=-3,0,1,22,22,600,400,0,..\..\..\..\Code\Objects\NetComIOSockJobPool.inc
+F6=-3,0,1,22,22,600,400,0,..\..\..\..\Code\Inc\Windows\Windows.inc
+F7=-3,0,1,-10,-33,1667,732,67,NetComServer_Protocol.inc
+F8=-3,0,1,22,22,600,400,0,..\..\..\..\Code\Macros\LSLL.inc
+F9=-3,0,1,22,22,600,400,0,..\..\..\..\Code\Inc\Windows\ws2tcpip.inc
+F10=-3,0,1,22,22,600,400,0,..\..\..\..\Code\Macros\DebugShare.inc
+F11=-3,0,1,22,22,600,400,0,NetComServer_Shared.inc
+F12=-3,0,1,22,22,600,400,0,..\..\..\..\Code\Inc\Windows\winsock.inc
+F13=-3,0,1,22,22,600,400,0,..\..\..\..\Code\Inc\Windows\WinSock2.inc
+F14=-3,0,1,22,22,600,400,0,..\..\..\..\Code\Objects\Collection.inc
+F15=-3,0,1,22,22,600,400,0,..\..\..\..\Code\Objects\StopWatch.inc
+F16=-3,0,1,22,22,600,400,0,..\..\..\..\Code\Objects\DataCollection.inc
+F17=-3,0,1,22,22,600,400,0,..\..\..\..\Code\Objects\SortedDataCollection.inc
+F18=-3,0,1,22,22,600,400,0,..\..\..\..\Code\Objects\SortedCollection.inc
+C7=0
+B7=
+M7=
+Open=0,5
+Api=
+C5=0
+B5=
+M5=
+C1=0
+B1=
+M1=
+[Make]
+Make=0
+0=Window Release,'/v "$R"',"$R.res",'/c /coff /Cp "$C"',"$C.obj",'/SUBSYSTEM:WINDOWS /RELEASE /VERSION:4.0 /OUT:$O $C $M $R',"$C.exe",'',
+Delete=0
+IncBuild=0
+Run=0,'',''
